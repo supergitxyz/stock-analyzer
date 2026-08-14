@@ -1,9 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import StockAnalyzer from "./StockAnalyzer.jsx";
+import LiveBrief from "./LiveBrief.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <StockAnalyzer />
+    <LiveBrief />
   </React.StrictMode>
 );
