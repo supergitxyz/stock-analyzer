@@ -64,13 +64,17 @@ export default function LiveBrief() {
         <div className="result">
           <div className="head">
             <div>
-              <p className="name">{data.name}</p>
-              <p className="price">
-                ${Number(data.price).toFixed(2)}
-                <span className={"chg " + (data.changePercentage >= 0 ? "up" : "down")}>
-                  {data.changePercentage >= 0 ? "▲" : "▼"} {Math.abs(Number(data.changePercentage)).toFixed(2)}%
-                </span>
-              </p>
+              {data.name && <p className="name">{data.name}</p>}
+              {data.hasQuote ? (
+                <p className="price">
+                  ${Number(data.price).toFixed(2)}
+                  <span className={"chg " + (data.changePercentage >= 0 ? "up" : "down")}>
+                    {data.changePercentage >= 0 ? "▲" : "▼"} {Math.abs(Number(data.changePercentage)).toFixed(2)}%
+                  </span>
+                </p>
+              ) : (
+                <p className="no-quote">Live price unavailable — analysis based on web sources</p>
+              )}
             </div>
             <p className="sym">{data.symbol}</p>
           </div>
@@ -138,6 +142,7 @@ const css = `
   .chg.up { color:#1E7F4C; }
   .chg.down { color:#B23B3B; }
   .sym { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:#1B3A5C; margin:0; }
+  .no-quote { font-size:13px; color:#8A8F98; font-style:italic; margin:0; }
 
   .section { margin-bottom:22px; }
   .section-title { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.05em; text-transform:uppercase; margin:0 0 10px; font-weight:700; }
