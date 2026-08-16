@@ -1,19 +1,47 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-// Point this at your Worker
 const PROXY_BASE = "https://fmp-proxy.amitgupta-nine.workers.dev";
+const STORAGE_KEY = "stockbrief:watchlist";
 
 export default function LiveBrief() {
   const [input, setInput] = useState("");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [watchlist, setWatchlist] = useState([]);
 
-  async function search(e) {
-    if (e) e.preventDefault();
-    const symbol = input.toUpperCase().trim();
+  // Load saved watchlist once on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) setWatchlist(JSON.parse(saved));
+    } catch (_) {
+      // corrupted or unavailable storage — start empty rather than crash
+    }
+  }, []);
+
+  function persist(next) {
+    setWatchlist(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch (_) {
+      // storage full or blocked (e.g. private mode) — UI still works this session
+    }
+  }
+
+  function toggleWatch(symbol) {
+    if (!symbol) return;
+    const next = watchlist.includes(symbol)
+      ? watchlist.filter((s) => s !== symbol)
+      : [...watchlist, symbol];
+    persist(next);
+  }
+
+  async function search(symbolOverride) {
+    const symbol = (symbolOverride || input).toUpperCase().trim();
     if (!symbol) return;
 
+    setInput(symbol);
     setLoading(true);
     setError(null);
     setData(null);
@@ -26,12 +54,14 @@ export default function LiveBrief() {
       } else {
         setData(json);
       }
-    } catch (err) {
+    } catch (_) {
       setError("Couldn't reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   }
+
+  const isWatched = data && watchlist.includes(data.symbol);
 
   return (
     <div className="wrap">
@@ -49,10 +79,28 @@ export default function LiveBrief() {
           placeholder="e.g. NVDA"
           maxLength={10}
         />
-        <button className="search-btn" onClick={search} disabled={loading || !input.trim()}>
+        <button className="search-btn" onClick={() => search()} disabled={loading || !input.trim()}>
           {loading ? "Analyzing…" : "Analyze"}
         </button>
       </div>
+
+      {watchlist.length > 0 && (
+        <div className="watchlist">
+          <p className="watch-label">Watchlist</p>
+          <div className="chips">
+            {watchlist.map((sym) => (
+              <div key={sym} className="chip">
+                <button className="chip-main" onClick={() => search(sym)} disabled={loading}>
+                  {sym}
+                </button>
+                <button className="chip-x" onClick={() => toggleWatch(sym)} aria-label={`Remove ${sym}`}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="status">Searching current news and building the brief — this takes ~15 seconds.</div>
@@ -76,7 +124,15 @@ export default function LiveBrief() {
                 <p className="no-quote">Live price unavailable — analysis based on web sources</p>
               )}
             </div>
-            <p className="sym">{data.symbol}</p>
+            <div className="head-right">
+              <p className="sym">{data.symbol}</p>
+              <button
+                className={"star-btn " + (isWatched ? "on" : "")}
+                onClick={() => toggleWatch(data.symbol)}
+              >
+                {isWatched ? "★ Saved" : "☆ Save"}
+              </button>
+            </div>
           </div>
 
           <Section title="Tailwinds" items={data.tailwinds} tone="pos" />
@@ -126,23 +182,35 @@ const css = `
   h1 { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:28px; color:#14171C; margin:0 0 6px; }
   .sub { font-size:13.5px; color:#8A8F98; margin:0 0 22px; }
 
-  .search-row { display:flex; gap:8px; margin-bottom:22px; }
+  .search-row { display:flex; gap:8px; margin-bottom:18px; }
   .search-input { flex:1; font-family:'JetBrains Mono',monospace; font-size:15px; padding:11px 14px; border:1px solid #D8D6CE; border-radius:4px; background:#fff; color:#14171C; text-transform:uppercase; }
   .search-input:focus { outline:none; border-color:#1B3A5C; }
   .search-btn { font-family:'Inter',sans-serif; font-size:14px; font-weight:600; padding:11px 20px; border-radius:4px; border:none; background:#1B3A5C; color:#fff; cursor:pointer; }
   .search-btn:disabled { background:#B0AEA6; cursor:not-allowed; }
 
+  .watchlist { margin-bottom:22px; }
+  .watch-label { font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase; color:#8A8F98; margin:0 0 8px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { display:flex; align-items:stretch; border:1px solid #D8D6CE; border-radius:4px; overflow:hidden; background:#fff; }
+  .chip-main { font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:700; padding:6px 10px; border:none; background:none; color:#1B3A5C; cursor:pointer; }
+  .chip-main:disabled { color:#B0AEA6; cursor:not-allowed; }
+  .chip-x { border:none; background:none; color:#B0AEA6; font-size:15px; padding:0 8px; cursor:pointer; border-left:1px solid #EFEDE6; }
+  .chip-x:hover { color:#B23B3B; }
+
   .status { font-size:13.5px; color:#8A8F98; font-style:italic; padding:14px 0; }
   .error { background:#F5DEDE; color:#8A2E2E; font-size:13.5px; padding:12px 14px; border-radius:4px; }
 
   .head { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:16px; border-bottom:1px solid #E3E1D9; margin-bottom:20px; }
+  .head-right { text-align:right; }
   .name { font-size:13px; color:#8A8F98; margin:0 0 4px; }
   .price { font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin:0; color:#14171C; }
   .chg { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; margin-left:10px; }
   .chg.up { color:#1E7F4C; }
   .chg.down { color:#B23B3B; }
-  .sym { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:#1B3A5C; margin:0; }
+  .sym { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:#1B3A5C; margin:0 0 6px; }
   .no-quote { font-size:13px; color:#8A8F98; font-style:italic; margin:0; }
+  .star-btn { font-family:'Inter',sans-serif; font-size:12px; font-weight:600; padding:5px 10px; border-radius:4px; border:1px solid #D8D6CE; background:#fff; color:#8A8F98; cursor:pointer; white-space:nowrap; }
+  .star-btn.on { border-color:#D9A441; color:#9A6B1A; background:#FDF6E7; }
 
   .section { margin-bottom:22px; }
   .section-title { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.05em; text-transform:uppercase; margin:0 0 10px; font-weight:700; }
